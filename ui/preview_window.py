@@ -1,4 +1,4 @@
-﻿# ui/preview_window.py
+# ui/preview_window.py
 
 """
 ui/preview_window.py
