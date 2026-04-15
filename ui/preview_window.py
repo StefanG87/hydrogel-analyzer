@@ -1,4 +1,4 @@
-# ui/preview_window.py
+﻿# ui/preview_window.py
 
 """
 ui/preview_window.py
@@ -170,19 +170,28 @@ class PreviewWindow(QDialog):
 
     def ensure_valid_baseline(self) -> None:
         """Ensure that a valid baseline exists for the current image."""
+        if self.image is None:
+            return
+
         baseline = normalize_baseline(self.settings.get("baseline"))
 
-        if baseline is None and self.image is not None:
+        if baseline is None or not self._baseline_fits_image(baseline, self.image.shape):
             height, width = self.image.shape[:2]
             baseline = create_default_baseline(width, height)
             self.settings["baseline"] = baseline
 
-        if baseline is None:
-            return
-
         (x1, y1), (x2, y2) = baseline
         self.handle1 = Circle((x1, y1), radius=self.handle_radius, color="red", picker=True)
         self.handle2 = Circle((x2, y2), radius=self.handle_radius, color="blue", picker=True)
+
+    @staticmethod
+    def _baseline_fits_image(baseline, image_shape) -> bool:
+        """Return whether all baseline points lie inside the current image."""
+        height, width = image_shape[:2]
+        for x, y in baseline:
+            if x < 0 or x >= width or y < 0 or y >= height:
+                return False
+        return True
 
     def update_baseline_from_handles(self) -> None:
         """Write the current handle positions back into the shared settings."""
