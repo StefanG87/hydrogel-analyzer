@@ -466,7 +466,7 @@ class MainWindow(QWidget):
                 self,
                 "Save Batch Video",
                 suggested_video_path,
-                "MP4 Video (*.mp4"",
+                "MP4 Video (*.mp4)",
             )
             if not selected_video_path:
                 return
@@ -707,7 +707,7 @@ class MainWindow(QWidget):
             else:
                 settings["plot_height_ymin"] = float(height_ymin_spin.value())
                 settings["plot_height_ymax"] = float(height_ymax_spin.value())
-                settings["plot_width_ymin"] = float(width_ymax_spin.value())
+                settings["plot_width_ymin"] = float(width_ymin_spin.value())
                 settings["plot_width_ymax"] = float(width_ymax_spin.value())
 
         return settings
