@@ -62,7 +62,7 @@ class PreviewWindow(QDialog):
         self.image_paths: List[str] = self._collect_images(image_folder)
         self.current_index = 0
 
-        self.imaga = None
+        self.image = None
         self.analysis_result = None
 
         self.handle_radius = 10
@@ -205,4 +205,125 @@ class PreviewWindow(QDialog):
 
     # ------------------------------------------------------------------
     # Analysis
-    # -----------------------------------------------------------------
+    # ------------------------------------------------------------------
+
+    def run_analysis(self) -> None:
+        """Run the current analysis pipeline."""
+        if self.image is None:
+            self.analysis_result = None
+            return
+
+        self.analysis_result = ContourAnalyzer.process_image(
+            image=self.image,
+            settings=self.settings,
+            image_path=self.image_paths[self.current_index] if self.image_paths else None,
+            include_debug_images=bool(self.settings.get("show_preprocessing", False)),
+        )
+
+    def refresh_analysis(self) -> None:
+        """
+        Public refresh hook used by the settings panel.
+
+        This method is intentionally small so it can be called safely from
+        outside without knowledge of the internal implementation.
+        """
+        self.update_baseline_from_handles()
+        self.run_analysis()
+        self.update_display()
+
+    # ------------------------------------------------------------------
+    # Rendering
+    # ------------------------------------------------------------------
+
+    def update_display(self) -> None:
+        """Redraw the preview image and overlay."""
+        if self.image is None or self.analysis_result is None:
+            return
+    
+        if self.settings.get("show_preprocessing", False):
+            image_to_display = self.analysis_result.debug.get("processed_image")
+            if image_to_display is None:
+                image_to_display = preprocess_image(self.image, self.settings)
+        else:
+            image_to_display = self.image
+    
+        result_to_draw = self.analysis_result
+        draw_settings = dict(self.settings)
+    
+        # During handle dragging, the baseline may be newer than the last analysis.
+        # In that case, keep the live baseline visible, but suppress geometry
+        # until a fresh analysis has been computed on mouse release.
+        if self.handle1 is not None and self.handle2 is not None:
+            live_baseline = (
+                (
+                    int(round(self.handle1.center[0])),
+                    int(round(self.handle1.center[1])),
+                ),
+                (
+                    int(round(self.handle2.center[0])),
+                    int(round(self.handle2.center[1])),
+                ),
+            )
+    
+            if result_to_draw.baseline != live_baseline:
+                result_to_draw = copy.copy(self.analysis_result)
+                result_to_draw.baseline = live_baseline
+                draw_settings["show_geometry"] = False
+    
+        draw_analysis_result(
+            ax=self.ax,
+            image=image_to_display,
+            result=result_to_draw,
+            settings=draw_settings,
+        )
+    
+        self._draw_handles()
+        self.zoom_handler.restore_zoom()
+        self.canvas.draw_idle()
+
+    # ------------------------------------------------------------------
+    # Mouse interaction
+    # ------------------------------------------------------------------
+
+    def _is_inside_handle(self, event, handle: Circle) -> bool:
+        """Return whether a mouse event lies inside a handle."""
+        if event.xdata is None or event.ydata is None:
+            return False
+
+        dx = float(event.xdata) - float(handle.center[0])
+        dy = float(event.ydata) - float(handle.center[1])
+        return dx * dx + dy * dy <= handle.radius * handle.radius
+
+    def on_mouse_press(self, event) -> None:
+        """Start baseline dragging if a handle is clicked."""
+        if event.inaxes != self.ax:
+            return
+
+        if self.handle1 is not None and self._is_inside_handle(event, self.handle1):
+            self.dragging_handle = self.handle1
+            return
+
+        if self.handle2 is not None and self._is_inside_handle(event, self.handle2):
+            self.dragging_handle = self.handle2
+            return
+
+    def on_mouse_move(self, event) -> None:
+        """Move the active baseline handle during dragging."""
+        if self.dragging_handle is None:
+            return
+
+        if event.xdata is None or event.ydata is None:
+            return
+
+        self.dragging_handle.center = (float(event.xdata), float(event.ydata))
+        self.update_baseline_from_handles()
+        self.update_display()
+
+    def on_mouse_release(self, event) -> None:
+        """Finish handle dragging and run one final analysis update."""
+        if self.dragging_handle is not None:
+            self.update_baseline_from_handles()
+            self.run_analysis()
+            self.update_display()
+
+        self.dragging_handle = None

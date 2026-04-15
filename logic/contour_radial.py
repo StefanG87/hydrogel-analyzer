@@ -416,12 +416,12 @@ def detect_contour_radial(
             )
         elif edge_direction == "bright_to_dark":
             candidate_indices = np.flatnonzero(
-                (-deltas > efffective_threshold) & (-deltas > float(min_delta))
+                (-deltas > effective_threshold) & (-deltas > float(min_delta))
             )
         else:
             abs_deltas = np.abs(deltas)
             candidate_indices = np.flatnonzero(
-                (abs_deltas > efffective_threshold) & (abs_deltas > float(min_delta))
+                (abs_deltas > effective_threshold) & (abs_deltas > float(min_delta))
             )
 
         if candidate_indices.size:
