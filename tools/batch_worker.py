@@ -96,12 +96,14 @@ class BatchWorker(QThread):
         progress_update(current, total)
         finished(csv_path, video_path)
         aborted()
+        failed(message)
     """
 
     progress_update = pyqtSignal(int, int)
     status_update = pyqtSignal(str)
     finished = pyqtSignal(str, str)
     aborted = pyqtSignal()
+    failed = pyqtSignal(str)
 
     def __init__(
         self,
@@ -146,6 +148,7 @@ class BatchWorker(QThread):
             return
 
         analysis_results: List[AnalysisResult] = []
+        renderer: Optional[VideoRenderer] = None
 
         try:
             self.status_update.emit("Starting batch analysis...")
@@ -188,6 +191,7 @@ class BatchWorker(QThread):
 
                     if self._cancel_requested:
                         renderer.finish()
+                        renderer = None
                         self.aborted.emit()
                         return
 
@@ -203,6 +207,7 @@ class BatchWorker(QThread):
 
                 self.status_update.emit("Finalizing video...")
                 renderer.finish()
+                renderer = None
                 exported_video_path = self.video_path
 
             self.finished.emit(
@@ -210,8 +215,16 @@ class BatchWorker(QThread):
                 exported_video_path if self.create_video else "",
             )
 
-        except Exception:
-            raise
+        except Exception as exc:
+            if renderer is not None:
+                try:
+                    renderer.finish()
+                except Exception:
+                    pass
+
+            message = f"{type(exc).__name__}: {exc}"
+            self.status_update.emit("Batch analysis failed.")
+            self.failed.emit(message)
 
     # ------------------------------------------------------------------
     # Helpers

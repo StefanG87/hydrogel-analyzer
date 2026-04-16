@@ -491,6 +491,7 @@ class MainWindow(QWidget):
         self.batch_thread.status_update.connect(self.update_batch_status)
         self.batch_thread.finished.connect(self.batch_analysis_done)
         self.batch_thread.aborted.connect(self.batch_analysis_aborted)
+        self.batch_thread.failed.connect(self.batch_analysis_failed)
         self.batch_thread.start()
 
     # ------------------------------------------------------------------
@@ -742,6 +743,7 @@ class MainWindow(QWidget):
     def batch_analysis_done(self, csv_path: str, video_path: str) -> None:
         """Handle successful batch completion."""
         self._set_batch_ui_running(False)
+        self.batch_thread = None
 
         if video_path:
             self.progress_label.setText(
@@ -759,7 +761,20 @@ class MainWindow(QWidget):
     def batch_analysis_aborted(self) -> None:
         """Handle batch cancellation."""
         self._set_batch_ui_running(False)
+        self.batch_thread = None
         self.progress_label.setText("Batch analysis was cancelled.")
+
+    def batch_analysis_failed(self, message: str) -> None:
+        """Handle an unexpected batch failure without leaving the UI disabled."""
+        self._set_batch_ui_running(False)
+        self.batch_thread = None
+        self.progress_label.setText(f"Batch analysis failed: {message}")
+
+        QMessageBox.critical(
+            self,
+            "Batch Failed",
+            f"Batch analysis failed:\n\n{message}",
+        )
 
     def _set_batch_ui_running(self, is_running: bool) -> None:
         """
